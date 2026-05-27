@@ -477,7 +477,7 @@ if opz_list:
             col.markdown(
                 "<div style='background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;"
                 "padding:6px 12px;margin-bottom:-50px;display:inline-block;font-weight:600;font-size:16px;'>"
-                + opz + "<span style='font-size:11px;color:#888;font-weight:400;margin-left:8px;'>/ OFF (기본 10분)</span></div>",
+                + opz + "<span style='font-size:11px;color:#888;font-weight:400;'>/ 현재 " + str(max_glide_min) + "분 설정</span></div>",
                 unsafe_allow_html=True
             )
             minute_options = [0, 10]
