@@ -493,7 +493,7 @@ if opz_list:
             col.markdown(
                 "<div style='background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;"
                 "padding:6px 12px;margin-bottom:-50px;display:inline-block;font-weight:600;font-size:16px;'>"
-                + opz + "</div>", unsafe_allow_html=True
+                + opz + "<span style='font-size:11px;color:#888;font-weight:400;margin-left:8px;'>/ Current: " + str(max_glide_min) + "min</span></div>", unsafe_allow_html=True
             )
             # 10분 단위 슬라이더 (10~60분)
             minute_options = [0, 10, 20, 30, 40, 50, 60]
@@ -508,7 +508,7 @@ if opz_list:
             col.markdown(
                 "<div style='background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;"
                 "padding:6px 12px;margin-bottom:-50px;display:inline-block;font-weight:600;font-size:16px;'>"
-                + opz + "</div>", unsafe_allow_html=True
+                + opz + "<span style='font-size:11px;color:#888;font-weight:400;margin-left:8px;'>/ Current: " + str(max_glide_min) + "min</span></div>", unsafe_allow_html=True
             )
             # 720분(12h) OPZ: 10분 단위(~60분) + 시간 단위(2h~12h)
             minute_options = [0, 10, 20, 30, 40, 50, 60, 120, 240, 360, 480, 600, 720]
