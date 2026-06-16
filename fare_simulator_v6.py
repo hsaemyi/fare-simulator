@@ -691,16 +691,16 @@ with st.expander(" ", expanded=False):
 # ══════════════════════════════════════════════════════
 # CALCULATION
 # ══════════════════════════════════════════════════════
-def gross_fare_krw(ppu, ppm, dur, glide_pct):
-    return ppu * (1 - glide_pct/100) + ppm * dur
+def gross_fare_krw(ppu, ppm, dur, glide_pct, subs_pct):
+    return ppu * (1 - glide_pct/100 - subs_pct/100) + ppm * dur
 
 cur_fare_krw = (
-    gross_fare_krw(ppu_day_calc,   ppm_day_calc,   cur_duration, cur_glide_day)   * (day_pct_calc/100) +
-    gross_fare_krw(ppu_night_calc, ppm_night_calc, cur_duration, cur_glide_night) * (night_pct_calc/100)
+    gross_fare_krw(ppu_day_calc,   ppm_day_calc,   cur_duration, cur_glide_day,   subs_day)   * (day_pct_calc/100) +
+    gross_fare_krw(ppu_night_calc, ppm_night_calc, cur_duration, cur_glide_night, subs_night) * (night_pct_calc/100)
 )
 prop_fare_krw = (
-    gross_fare_krw(prop_ppu_day,   prop_ppm_day,   cur_duration, prop_glide_day)   * (day_pct_calc/100) +
-    gross_fare_krw(prop_ppu_night, prop_ppm_night, cur_duration, prop_glide_night) * (night_pct_calc/100)
+    gross_fare_krw(prop_ppu_day,   prop_ppm_day,   cur_duration, prop_glide_day,   subs_day)   * (day_pct_calc/100) +
+    gross_fare_krw(prop_ppu_night, prop_ppm_night, cur_duration, prop_glide_night, subs_night) * (night_pct_calc/100)
 )
 
 pricing_change_rate = (prop_fare_krw - cur_fare_krw) / cur_fare_krw if cur_fare_krw > 0 else 0
