@@ -77,7 +77,6 @@ def load_all_sheets():
     df_price  = pd.DataFrame(raw_price[1:], columns=raw_price[0])
     df_price.columns = [c.strip() for c in df_price.columns]
 
-    # ── 변경: 컬럼 수 15 → 20 ──
     raw_glide_hour = sh.worksheet("Glide_hour").get_all_values()
     df_glide_hour  = pd.DataFrame(raw_glide_hour[1:], columns=raw_glide_hour[0])
     df_glide_hour  = df_glide_hour.iloc[:, :20]
@@ -250,25 +249,56 @@ def get_city_glide_pct(df_glide_opz, timeofday):
     except:
         return 0
 
-def get_price(df_price, city):
+# ══════════════════════════════════════════════════════
+# [수정] get_price → OPZ 단위 dict + 도시 단위(opz 빈 행) 별도 반환
+# ══════════════════════════════════════════════════════
+def get_price_by_opz(df_price, city):
+    """
+    return:
+      opz_dict  : { opz: {ppu_day, ppm_day, ppu_night, ppm_night, inflows_4w} }  (opz 비어있지 않은 행만)
+      city_row  : {ppu_day, ppm_day, ppu_night, ppm_night, inflows_4w} 또는 None (opz가 빈 행, 도시 단위 가격)
+    """
     try:
         df_f = df_price[df_price["city_name"].str.strip() == city].copy()
         if df_f.empty:
-            return None, None, None, None, None
+            return {}, None
         for col in ["ppu_day","ppm_day","ppu_night","ppm_night"]:
             df_f[col] = pd.to_numeric(df_f[col], errors="coerce").fillna(0)
-        inflows_raw = df_f["inflows_4w_avg"].iloc[0]
-        inflows_4w  = float(str(inflows_raw).replace("%","").strip()) / 100
-        return (df_f["ppu_day"].mean(), df_f["ppm_day"].mean(),
-                df_f["ppu_night"].mean(), df_f["ppm_night"].mean(), inflows_4w)
+        opz_dict = {}
+        city_row = None
+        for _, row in df_f.iterrows():
+            opz = str(row["opz"]).strip()
+            try:
+                inflows_4w = float(str(row["inflows_4w_avg"]).replace("%","").strip()) / 100
+            except:
+                inflows_4w = 0
+            entry = {
+                "ppu_day": row["ppu_day"], "ppm_day": row["ppm_day"],
+                "ppu_night": row["ppu_night"], "ppm_night": row["ppm_night"],
+                "inflows_4w": inflows_4w,
+            }
+            if opz == "" or opz.lower() == "nan":
+                city_row = entry  # opz 빈 행 = 도시 단위 가격
+            else:
+                opz_dict[opz] = entry
+        return opz_dict, city_row
     except:
-        return None, None, None, None, None
+        return {}, None
 
-ppu_day, ppm_day, ppu_night, ppm_night, inflows_4w = get_price(df_price, selected_city)
-ppu_day_calc   = ppu_day   if ppu_day   is not None else 0
-ppm_day_calc   = ppm_day   if ppm_day   is not None else 0
-ppu_night_calc = ppu_night if ppu_night is not None else 0
-ppm_night_calc = ppm_night if ppm_night is not None else 0
+price_by_opz, city_price_row = get_price_by_opz(df_price, selected_city)
+price_opz_list = sorted(price_by_opz.keys())
+
+def get_opz_trip_weight(df_glide_opz, opz, timeofday):
+    """해당 OPZ의 DAY/NIGHT trip이 도시 전체 DAY/NIGHT trip에서 차지하는 비중(%)"""
+    try:
+        df_tod = df_glide_opz[df_glide_opz["timeofday"].str.strip() == timeofday]
+        city_total = df_tod["total_trips"].sum()
+        if city_total == 0:
+            return 0
+        opz_total = df_tod[df_tod["region_name"] == opz]["total_trips"].sum()
+        return round(opz_total / city_total * 100, 2)
+    except:
+        return 0
 
 # ══════════════════════════════════════════════════════
 # ── 변경: get_glide_hour_pct 전면 수정 ──
@@ -286,12 +316,10 @@ def get_glide_hour_pct(df_glide_hour, city, opz, max_minutes):
         if df_f.empty:
             return None
 
-        # 10분 단위 컬럼 (0~60분)
         min_cols = [
             "glide_0_10_min", "glide_10_20_min", "glide_20_30_min",
             "glide_30_40_min", "glide_40_50_min", "glide_50_60_min",
         ]
-        # 시간 단위 컬럼 (1h 초과)
         hour_cols = [
             "glide_1_2_hours", "glide_2_4_hours", "glide_4_6_hours",
             "glide_6_8_hours", "glide_8_10_hours", "glide_over_10_hours",
@@ -305,8 +333,6 @@ def get_glide_hour_pct(df_glide_hour, city, opz, max_minutes):
         if total == 0:
             return None
 
-        # max_minutes 기준으로 within 컬럼 결정
-        # 10분 단위 누적 매핑 (분 → 포함할 min_cols 수)
         min_col_map = {
             10:  min_cols[:1],
             20:  min_cols[:2],
@@ -315,7 +341,6 @@ def get_glide_hour_pct(df_glide_hour, city, opz, max_minutes):
             50:  min_cols[:5],
             60:  min_cols[:6],
         }
-        # 시간 단위 누적 매핑 (분 → min_cols 전체 + hour_cols 일부)
         hour_col_map = {
             120: min_cols + hour_cols[:1],
             240: min_cols + hour_cols[:2],
@@ -472,7 +497,6 @@ if opz_list:
 
         max_glide_min = get_opz_max_glide(df_opz_list, selected_city, opz)
 
-        # ── 변경: 슬라이더 옵션을 max_glide_min 기준으로 분기 ──
         if max_glide_min <= 10:
             col.markdown(
                 "<div style='background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;"
@@ -488,19 +512,18 @@ if opz_list:
                 key=f"opz_min_{i}",
                 format_func=lambda x: "OFF" if x == 0 else "No Change"
             )
-            
+
         elif max_glide_min <= 60:
             col.markdown(
                 "<div style='background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;"
                 "padding:6px 12px;margin-bottom:-50px;display:inline-block;font-weight:600;font-size:16px;'>"
                 + opz + "<span style='font-size:11px;color:#888;font-weight:400;margin-left:8px;'>/ Current: " + str(max_glide_min) + "min</span></div>", unsafe_allow_html=True
             )
-            # 10분 단위 슬라이더 (10~60분)
             minute_options = [0, 10, 20, 30, 40, 50, 60]
             minute_limit = col.select_slider(
                 "",
                 options=minute_options,
-                value=max_glide_min,  # 현재 설정값을 기본값으로
+                value=max_glide_min,
                 key=f"opz_min_{i}",
                 format_func=lambda x: "OFF" if x == 0 else (f"{x}min" if x < max_glide_min else "No Change")
             )
@@ -510,7 +533,6 @@ if opz_list:
                 "padding:6px 12px;margin-bottom:-50px;display:inline-block;font-weight:600;font-size:16px;'>"
                 + opz + "<span style='font-size:11px;color:#888;font-weight:400;margin-left:8px;'>/ Current: " + str(max_glide_min) + "min</span></div>", unsafe_allow_html=True
             )
-            # 720분(12h) OPZ: 10분 단위(~60분) + 시간 단위(2h~12h)
             minute_options = [0, 10, 20, 30, 40, 50, 60, 120, 240, 360, 480, 600, 720]
             minute_limit = col.select_slider(
                 "",
@@ -527,13 +549,11 @@ if opz_list:
 
         opz_hour_limits[opz] = minute_limit
 
-        # ── 변경: minute_limit 기준으로 표시 분기 ──
         if minute_limit == 0:
             hour_info      = "OFF"
             info_color     = "#E24B4A"
             prop_total_pct = 0.0
         elif minute_limit == max_glide_min or minute_limit == 720:
-            # No Change
             hour_info      = ""
             info_color     = "#888"
             prop_total_pct = total_cur_pct
@@ -556,7 +576,6 @@ if opz_list:
         )
         col.markdown(box_html, unsafe_allow_html=True)
 
-    # ── 변경: get_proposed_glide_pct도 minute_limit 기준으로 수정 ──
     def get_proposed_glide_pct(df_glide_opz, df_glide_hour, timeofday, opz_hour_limits, city, df_opz_list):
         try:
             df_tod = df_glide_opz[df_glide_opz["timeofday"].str.strip() == timeofday]
@@ -573,7 +592,7 @@ if opz_list:
                 if minute_limit == 0:
                     opz_glide = 0
                 elif minute_limit == max_glide_min or minute_limit == 720:
-                    pass  # No Change, glide 그대로
+                    pass
                 else:
                     within_pct = get_glide_hour_pct(df_glide_hour, city, opz, minute_limit)
                     if within_pct is not None:
@@ -652,59 +671,213 @@ if opz_list:
 else:
     st.info(f"{selected_city} | {selected_week} Glide 데이터가 없습니다.")
     cur_glide_day = cur_glide_night = prop_glide_day = prop_glide_night = 0
+    opz_hour_limits = {}
 
 # ══════════════════════════════════════════════════════
-# STEP 2. 가격 변경
+# STEP 2. 가격 변경 (OPZ별 분리)  [전면 수정]
 # ══════════════════════════════════════════════════════
 st.markdown('<div style="background:#1B2A3B;color:white;padding:10px 18px;border-radius:8px;font-weight:600;margin:60px 0 16px;">STEP 2. Pricing Settings</div>', unsafe_allow_html=True)
 
-with st.expander(" ", expanded=False):
-    pc1, pc2 = st.columns(2)
-    with pc1:
-        st.markdown('<div style="background:#e8f5e9;border-left:4px solid #1D9E75;padding:8px 14px;border-radius:6px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">☀️ DAY (06:00~23:59)</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
-    with c1:
-        st.caption("Current")
-        st.text_input("PPU",                value=f"{ppu_day:.0f}"   if ppu_day   is not None else "-", disabled=True, key=f"ppu_d_c_{selected_city}")
-        st.text_input("PPM",                value=f"{ppm_day:.0f}"   if ppm_day   is not None else "-", disabled=True, key=f"ppm_d_c_{selected_city}")
-        st.text_input("Subs Free Unlock %", value=f"{subs_day:.1f}%" if subs_day  is not None else "-", disabled=True, key=f"sub_d_c_{selected_city}")
-        st.text_input("DAY Trip %",         value=f"{day_pct:.1f}%"  if day_pct   is not None else "-", disabled=True, key=f"day_pct_c_{selected_city}")
-    with c2:
-        st.caption("Proposed")
-        prop_ppu_day = st.number_input("PPU", value=int(ppu_day_calc), step=10, key=f"ppu_d_p_{selected_city}")
-        prop_ppm_day = st.number_input("PPM", value=int(ppm_day_calc), step=10, key=f"ppm_d_p_{selected_city}")
+prop_price_by_opz = {}  # { opz: {ppu_day, ppm_day, ppu_night, ppm_night} }
 
-    with pc2:
-        st.markdown('<div style="background:#ede7f6;border-left:4px solid #7F77DD;padding:8px 14px;border-radius:6px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">🌙 NIGHT (00:00~05:59)</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
-    with c1:
-        st.caption("Current")
-        st.text_input("PPU",                value=f"{ppu_night:.0f}"   if ppu_night   is not None else "-", disabled=True, key=f"ppu_n_c_{selected_city}")
-        st.text_input("PPM",                value=f"{ppm_night:.0f}"   if ppm_night   is not None else "-", disabled=True, key=f"ppm_n_c_{selected_city}")
-        st.text_input("Subs Free Unlock %", value=f"{subs_night:.1f}%" if subs_night  is not None else "-", disabled=True, key=f"sub_n_c_{selected_city}")
-        st.text_input("NIGHT Trip %",       value=f"{night_pct:.1f}%"  if night_pct   is not None else "-", disabled=True, key=f"ngt_pct_c_{selected_city}")
-    with c2:
-        st.caption("Proposed")
-        prop_ppu_night = st.number_input("PPU", value=int(ppu_night_calc), step=10, key=f"ppu_n_p_{selected_city}")
-        prop_ppm_night = st.number_input("PPM", value=int(ppm_night_calc), step=10, key=f"ppm_n_p_{selected_city}")
+# ── 도시 단위 박스 (Price 시트 opz 빈 행 기준, 예전 단순 로직) ──
+st.markdown("<div style='margin-bottom:10px;font-size:19px;font-weight:700;'>City-wide</div>", unsafe_allow_html=True)
+
+if city_price_row is not None:
+    with st.expander(f"📍 **{selected_city}**", expanded=False):
+        pc1, pc2 = st.columns(2)
+        with pc1:
+            st.markdown('<div style="background:#e8f5e9;border-left:4px solid #1D9E75;padding:8px 14px;border-radius:6px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">☀️ DAY (06:00~23:59)</div>', unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+        with c1:
+            st.caption("Current")
+            st.text_input("PPU", value=f"{city_price_row['ppu_day']:.0f}", disabled=True, key=f"ppu_d_c_{selected_city}_city")
+            st.text_input("PPM", value=f"{city_price_row['ppm_day']:.0f}", disabled=True, key=f"ppm_d_c_{selected_city}_city")
+            st.text_input("Subs Free Unlock %", value=f"{subs_day:.1f}%" if subs_day is not None else "-", disabled=True, key=f"sub_d_c_{selected_city}_city")
+            st.text_input("DAY Trip %", value=f"{day_pct:.1f}%" if day_pct is not None else "-", disabled=True, key=f"day_pct_c_{selected_city}_city")
+        with c2:
+            st.caption("Proposed")
+            city_prop_ppu_day = st.number_input("PPU", value=int(city_price_row['ppu_day']), step=10, key=f"ppu_d_p_{selected_city}_city")
+            city_prop_ppm_day = st.number_input("PPM", value=int(city_price_row['ppm_day']), step=10, key=f"ppm_d_p_{selected_city}_city")
+
+        with pc2:
+            st.markdown('<div style="background:#ede7f6;border-left:4px solid #7F77DD;padding:8px 14px;border-radius:6px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">🌙 NIGHT (00:00~05:59)</div>', unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+        with c1:
+            st.caption("Current")
+            st.text_input("PPU", value=f"{city_price_row['ppu_night']:.0f}", disabled=True, key=f"ppu_n_c_{selected_city}_city")
+            st.text_input("PPM", value=f"{city_price_row['ppm_night']:.0f}", disabled=True, key=f"ppm_n_c_{selected_city}_city")
+            st.text_input("Subs Free Unlock %", value=f"{subs_night:.1f}%" if subs_night is not None else "-", disabled=True, key=f"sub_n_c_{selected_city}_city")
+            st.text_input("NIGHT Trip %", value=f"{night_pct:.1f}%" if night_pct is not None else "-", disabled=True, key=f"ngt_pct_c_{selected_city}_city")
+        with c2:
+            st.caption("Proposed")
+            city_prop_ppu_night = st.number_input("PPU", value=int(city_price_row['ppu_night']), step=10, key=f"ppu_n_p_{selected_city}_city")
+            city_prop_ppm_night = st.number_input("PPM", value=int(city_price_row['ppm_night']), step=10, key=f"ppm_n_p_{selected_city}_city")
+else:
+    st.info("도시 단위(opz 빈 행) 가격 데이터가 없습니다.")
+    city_prop_ppu_day = city_prop_ppm_day = city_prop_ppu_night = city_prop_ppm_night = 0
+
+st.markdown("<div style='margin:18px 0 10px;font-size:19px;font-weight:700;'>By OPZ</div>", unsafe_allow_html=True)
+
+if price_opz_list:
+    for opz in price_opz_list:
+        cur_p = price_by_opz[opz]
+        opz_day_weight   = get_opz_trip_weight(df_glide_opz, opz, "DAY")
+        opz_night_weight = get_opz_trip_weight(df_glide_opz, opz, "NIGHT")
+
+         # 이 OPZ 내부에서 DAY/NIGHT가 차지하는 비율 (도시 전체값 아님)
+        opz_day_total_trips   = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="DAY")]["total_trips"].sum()
+        opz_night_total_trips = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="NIGHT")]["total_trips"].sum()
+        opz_total_trips = opz_day_total_trips + opz_night_total_trips
+        opz_internal_day_pct   = round(opz_day_total_trips / opz_total_trips * 100, 1)   if opz_total_trips > 0 else 0
+        opz_internal_night_pct = round(opz_night_total_trips / opz_total_trips * 100, 1) if opz_total_trips > 0 else 0
+        city_total_all_trips = df_glide_opz["total_trips"].sum()
+        opz_total_weight = round(opz_total_trips / city_total_all_trips * 100, 1) if         city_total_all_trips > 0 else 0
+
+        with st.expander(f"📍 **{opz}**  ·  Total {opz_total_weight:.1f}% (DAY {opz_day_weight:.1f}% | NIGHT {opz_night_weight:.1f}%)", expanded=False):
+            pc1, pc2 = st.columns(2)
+            with pc1:
+                st.markdown('<div style="background:#e8f5e9;border-left:4px solid #1D9E75;padding:8px 14px;border-radius:6px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">☀️ DAY (06:00~23:59)</div>', unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+            with c1:
+                st.caption("Current")
+                st.text_input("PPU", value=f"{cur_p['ppu_day']:.0f}", disabled=True, key=f"ppu_d_c_{selected_city}_{opz}")
+                st.text_input("PPM", value=f"{cur_p['ppm_day']:.0f}", disabled=True, key=f"ppm_d_c_{selected_city}_{opz}")
+                st.text_input("DAY Trip % (OPZ 내)", value=f"{opz_internal_day_pct:.1f}%", disabled=True, key=f"day_pct_c_{selected_city}_{opz}")
+            with c2:
+                st.caption("Proposed")
+                p_ppu_day = st.number_input("PPU", value=int(cur_p['ppu_day']), step=10, key=f"ppu_d_p_{selected_city}_{opz}")
+                p_ppm_day = st.number_input("PPM", value=int(cur_p['ppm_day']), step=10, key=f"ppm_d_p_{selected_city}_{opz}")
+
+            with pc2:
+                st.markdown('<div style="background:#ede7f6;border-left:4px solid #7F77DD;padding:8px 14px;border-radius:6px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">🌙 NIGHT (00:00~05:59)</div>', unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+            with c1:
+                st.caption("Current")
+                st.text_input("PPU", value=f"{cur_p['ppu_night']:.0f}", disabled=True, key=f"ppu_n_c_{selected_city}_{opz}")
+                st.text_input("PPM", value=f"{cur_p['ppm_night']:.0f}", disabled=True, key=f"ppm_n_c_{selected_city}_{opz}")
+                st.text_input("NIGHT Trip % (OPZ 내)", value=f"{opz_internal_night_pct:.1f}%", disabled=True, key=f"ngt_pct_c_{selected_city}_{opz}")
+            with c2:
+                st.caption("Proposed")
+                p_ppu_night = st.number_input("PPU", value=int(cur_p['ppu_night']), step=10, key=f"ppu_n_p_{selected_city}_{opz}")
+                p_ppm_night = st.number_input("PPM", value=int(cur_p['ppm_night']), step=10, key=f"ppm_n_p_{selected_city}_{opz}")
+
+        prop_price_by_opz[opz] = {
+            "ppu_day": p_ppu_day, "ppm_day": p_ppm_day,
+            "ppu_night": p_ppu_night, "ppm_night": p_ppm_night,
+        }
+else:
+    st.info(f"{selected_city} 가격 데이터가 없습니다.")
 
 # ══════════════════════════════════════════════════════
 # CALCULATION
+#  - City-wide 계산: 예전 단순 로직 (단일 PPU/PPM)
+#  - OPZ별 계산: OPZ별 blended (Subs%는 도시 전체 공통값)
+#  - 우선순위: OPZ가 하나라도 바뀌면 OPZ 계산이 최종값으로 사용됨.
+#              City-wide도 같이 바뀌었으면 OPZ가 우선하고 City-wide 변경은 무시.
 # ══════════════════════════════════════════════════════
 def gross_fare_krw(ppu, ppm, dur, glide_pct, subs_pct):
     return ppu * (1 - glide_pct/100 - subs_pct/100) + ppm * dur
 
-cur_fare_krw = (
-    gross_fare_krw(ppu_day_calc,   ppm_day_calc,   cur_duration, cur_glide_day,   subs_day)   * (day_pct_calc/100) +
-    gross_fare_krw(ppu_night_calc, ppm_night_calc, cur_duration, cur_glide_night, subs_night) * (night_pct_calc/100)
-)
-prop_fare_krw = (
-    gross_fare_krw(prop_ppu_day,   prop_ppm_day,   cur_duration, prop_glide_day,   subs_day)   * (day_pct_calc/100) +
-    gross_fare_krw(prop_ppu_night, prop_ppm_night, cur_duration, prop_glide_night, subs_night) * (night_pct_calc/100)
-)
+# ── City-wide 계산 (예전 로직) ──
+city_changed = False
+city_pricing_change_rate = 0
+if city_price_row is not None:
+    city_changed = (
+        city_prop_ppu_day   != city_price_row['ppu_day']   or
+        city_prop_ppm_day   != city_price_row['ppm_day']   or
+        city_prop_ppu_night != city_price_row['ppu_night'] or
+        city_prop_ppm_night != city_price_row['ppm_night']
+    )
+    city_cur_fare_krw = (
+        gross_fare_krw(city_price_row['ppu_day'],   city_price_row['ppm_day'],   cur_duration, cur_glide_day,   subs_day)   * (day_pct_calc/100) +
+        gross_fare_krw(city_price_row['ppu_night'], city_price_row['ppm_night'], cur_duration, cur_glide_night, subs_night) * (night_pct_calc/100)
+    )
+    city_prop_fare_krw = (
+        gross_fare_krw(city_prop_ppu_day,   city_prop_ppm_day,   cur_duration, prop_glide_day,   subs_day)   * (day_pct_calc/100) +
+        gross_fare_krw(city_prop_ppu_night, city_prop_ppm_night, cur_duration, prop_glide_night, subs_night) * (night_pct_calc/100)
+    )
+    city_pricing_change_rate = (city_prop_fare_krw - city_cur_fare_krw) / city_cur_fare_krw if city_cur_fare_krw > 0 else 0
 
-pricing_change_rate = (prop_fare_krw - cur_fare_krw) / cur_fare_krw if cur_fare_krw > 0 else 0
-prop_net_avg_fare   = cur_net_avg_fare * (1 + pricing_change_rate)
+# ── OPZ별 계산 ──
+opz_cur_fare_krw  = 0
+opz_prop_fare_krw = 0
+opz_change_detail = {}  # { opz: {ppu_day_chg, ppm_day_chg, ppu_night_chg, ppm_night_chg, day_weight, night_weight, ppu_changed, ppm_changed} }
+
+for opz in price_opz_list:
+    cur_p  = price_by_opz[opz]
+    prop_p = prop_price_by_opz[opz]
+
+    opz_day_glide   = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="DAY")]
+    opz_night_glide = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="NIGHT")]
+    opz_day_total   = opz_day_glide["total_trips"].sum()
+    opz_night_total = opz_night_glide["total_trips"].sum()
+    opz_day_glidesum   = opz_day_glide["glidesum"].sum()
+    opz_night_glidesum = opz_night_glide["glidesum"].sum()
+    opz_cur_glide_day   = round(opz_day_glidesum / opz_day_total * 100, 2)   if opz_day_total > 0   else 0
+    opz_cur_glide_night = round(opz_night_glidesum / opz_night_total * 100, 2) if opz_night_total > 0 else 0
+
+    minute_limit  = opz_hour_limits.get(opz, 720)
+    max_glide_min = get_opz_max_glide(df_opz_list, selected_city, opz)
+    if minute_limit == 0:
+        opz_prop_glide_day = 0
+        opz_prop_glide_night = 0
+    elif minute_limit == max_glide_min or minute_limit == 720:
+        opz_prop_glide_day = opz_cur_glide_day
+        opz_prop_glide_night = opz_cur_glide_night
+    else:
+        within_pct = get_glide_hour_pct(df_glide_hour, selected_city, opz, minute_limit)
+        ratio = (within_pct / 100) if within_pct is not None else 1.0
+        opz_prop_glide_day = round(opz_cur_glide_day * ratio, 2)
+        opz_prop_glide_night = round(opz_cur_glide_night * ratio, 2)
+
+    day_weight   = get_opz_trip_weight(df_glide_opz, opz, "DAY") / 100
+    night_weight = get_opz_trip_weight(df_glide_opz, opz, "NIGHT") / 100
+
+    opz_cur_fare_krw += (
+        gross_fare_krw(cur_p['ppu_day'],   cur_p['ppm_day'],   cur_duration, opz_cur_glide_day,   subs_day)   * day_weight +
+        gross_fare_krw(cur_p['ppu_night'], cur_p['ppm_night'], cur_duration, opz_cur_glide_night, subs_night) * night_weight
+    )
+    opz_prop_fare_krw += (
+        gross_fare_krw(prop_p['ppu_day'],   prop_p['ppm_day'],   cur_duration, opz_prop_glide_day,   subs_day)   * day_weight +
+        gross_fare_krw(prop_p['ppu_night'], prop_p['ppm_night'], cur_duration, opz_prop_glide_night, subs_night) * night_weight
+    )
+
+    opz_change_detail[opz] = {
+        "ppu_day_chg":   (prop_p['ppu_day']   - cur_p['ppu_day'])   / cur_p['ppu_day']   * 100 if cur_p['ppu_day']   > 0 else 0,
+        "ppm_day_chg":   (prop_p['ppm_day']   - cur_p['ppm_day'])   / cur_p['ppm_day']   * 100 if cur_p['ppm_day']   > 0 else 0,
+        "ppu_night_chg": (prop_p['ppu_night'] - cur_p['ppu_night']) / cur_p['ppu_night'] * 100 if cur_p['ppu_night'] > 0 else 0,
+        "ppm_night_chg": (prop_p['ppm_night'] - cur_p['ppm_night']) / cur_p['ppm_night'] * 100 if cur_p['ppm_night'] > 0 else 0,
+        "day_weight":    day_weight,
+        "night_weight":  night_weight,
+        "ppu_changed":   (prop_p['ppu_day'] != cur_p['ppu_day']) or (prop_p['ppu_night'] != cur_p['ppu_night']),
+        "ppm_changed":   (prop_p['ppm_day'] != cur_p['ppm_day']) or (prop_p['ppm_night'] != cur_p['ppm_night']),
+    }
+
+opz_any_changed = any(v["ppu_changed"] or v["ppm_changed"] for v in opz_change_detail.values()) if opz_change_detail else False
+opz_pricing_change_rate = (opz_prop_fare_krw - opz_cur_fare_krw) / opz_cur_fare_krw if opz_cur_fare_krw > 0 else 0
+
+# ── 우선순위: OPZ가 바뀌었으면 OPZ 계산 사용, 아니면 City-wide 계산 사용 ──
+if opz_any_changed:
+    pricing_change_rate = opz_pricing_change_rate
+    price_source = "opz"
+elif city_changed:
+    pricing_change_rate = city_pricing_change_rate
+    price_source = "city"
+else:
+    pricing_change_rate = 0
+    price_source = "none"
+
+prop_net_avg_fare = cur_net_avg_fare * (1 + pricing_change_rate)
+
+if opz_any_changed and city_changed:
+    st.markdown(
+        "<div style='background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;"
+        "padding:8px 14px;margin:8px 0;font-size:13px;color:#e65100;'>"
+        "⚠️ City-wide와 OPZ 가격이 동시에 변경되었습니다. <b>OPZ별 변경값이 우선 적용</b>되며 City-wide 변경분은 무시됩니다."
+        "</div>",
+        unsafe_allow_html=True
+    )
 
 # ══════════════════════════════════════════════════════
 # SIMULATION RESULT
@@ -713,8 +886,11 @@ st.markdown("---")
 st.markdown('<div class="result-header">📊 Simulation Result</div>', unsafe_allow_html=True)
 
 glide_changed = (prop_glide_day != cur_glide_day) or (prop_glide_night != cur_glide_night)
-price_changed = (prop_ppu_day != ppu_day_calc or prop_ppm_day != ppm_day_calc or
-                 prop_ppu_night != ppu_night_calc or prop_ppm_night != ppm_night_calc)
+price_changed = opz_any_changed or city_changed
+ppu_changed   = (any(v["ppu_changed"] for v in opz_change_detail.values()) if opz_change_detail else False) or \
+                (city_changed and city_price_row is not None and (city_prop_ppu_day != city_price_row['ppu_day'] or city_prop_ppu_night != city_price_row['ppu_night']))
+ppm_changed   = (any(v["ppm_changed"] for v in opz_change_detail.values()) if opz_change_detail else False) or \
+                (city_changed and city_price_row is not None and (city_prop_ppm_day != city_price_row['ppm_day'] or city_prop_ppm_night != city_price_row['ppm_night']))
 
 if glide_changed and price_changed:
     effect_title = "Glide & Pricing Impact"
@@ -803,16 +979,38 @@ else:
     ppm_elasticity = -0.3
     selected_sensitivity = "🟡 Medium (-0.5)"
 
-ppu_day_change   = (prop_ppu_day - ppu_day_calc) / ppu_day_calc * 100       if ppu_day_calc > 0   else 0
-ppu_night_change = (prop_ppu_night - ppu_night_calc) / ppu_night_calc * 100  if ppu_night_calc > 0 else 0
-ppm_day_change   = (prop_ppm_day - ppm_day_calc) / ppm_day_calc * 100       if ppm_day_calc > 0   else 0
-ppm_night_change = (prop_ppm_night - ppm_night_calc) / ppm_night_calc * 100  if ppm_night_calc > 0 else 0
+# ══════════════════════════════════════════════════════
+# PPU/PPM 변화율 가중평균 (elasticity 계산용)
+#  - price_source == "opz"  → OPZ별 trip 비중 가중평균
+#  - price_source == "city" → City-wide 단일 변화율 그대로 사용
+# ══════════════════════════════════════════════════════
+ppu_avg_change = 0
+ppm_avg_change = 0
+cur_ppu_avg = 0
+cur_ppm_avg = 0
 
-ppu_avg_change = (ppu_day_change * day_pct_calc + ppu_night_change * night_pct_calc) / 100 if (day_pct_calc + night_pct_calc) > 0 else 0
-ppm_avg_change = (ppm_day_change * day_pct_calc + ppm_night_change * night_pct_calc) / 100 if (day_pct_calc + night_pct_calc) > 0 else 0
+if price_source == "opz":
+    total_weight = sum(v["day_weight"] + v["night_weight"] for v in opz_change_detail.values()) if opz_change_detail else 0
+    if total_weight > 0:
+        for opz, v in opz_change_detail.items():
+            ppu_avg_change += (v["ppu_day_chg"] * v["day_weight"] + v["ppu_night_chg"] * v["night_weight"])
+            ppm_avg_change += (v["ppm_day_chg"] * v["day_weight"] + v["ppm_night_chg"] * v["night_weight"])
+        ppu_avg_change /= total_weight
+        ppm_avg_change /= total_weight
+        cur_ppu_avg = sum(price_by_opz[opz]['ppu_day'] * v['day_weight'] + price_by_opz[opz]['ppu_night'] * v['night_weight']
+                           for opz, v in opz_change_detail.items()) / total_weight
+        cur_ppm_avg = sum(price_by_opz[opz]['ppm_day'] * v['day_weight'] + price_by_opz[opz]['ppm_night'] * v['night_weight']
+                           for opz, v in opz_change_detail.items()) / total_weight
+elif price_source == "city" and city_price_row is not None:
+    ppu_day_chg_c   = (city_prop_ppu_day   - city_price_row['ppu_day'])   / city_price_row['ppu_day']   * 100 if city_price_row['ppu_day']   > 0 else 0
+    ppm_day_chg_c   = (city_prop_ppm_day   - city_price_row['ppm_day'])   / city_price_row['ppm_day']   * 100 if city_price_row['ppm_day']   > 0 else 0
+    ppu_night_chg_c = (city_prop_ppu_night - city_price_row['ppu_night']) / city_price_row['ppu_night'] * 100 if city_price_row['ppu_night'] > 0 else 0
+    ppm_night_chg_c = (city_prop_ppm_night - city_price_row['ppm_night']) / city_price_row['ppm_night'] * 100 if city_price_row['ppm_night'] > 0 else 0
+    ppu_avg_change = ppu_day_chg_c * (day_pct_calc/100) + ppu_night_chg_c * (night_pct_calc/100)
+    ppm_avg_change = ppm_day_chg_c * (day_pct_calc/100) + ppm_night_chg_c * (night_pct_calc/100)
+    cur_ppu_avg = city_price_row['ppu_day'] * (day_pct_calc/100) + city_price_row['ppu_night'] * (night_pct_calc/100)
+    cur_ppm_avg = city_price_row['ppm_day'] * (day_pct_calc/100) + city_price_row['ppm_night'] * (night_pct_calc/100)
 
-cur_ppu_avg = (ppu_day_calc * day_pct_calc + ppu_night_calc * night_pct_calc) / 100 if (day_pct_calc + night_pct_calc) > 0 else ppu_day_calc
-cur_ppm_avg = (ppm_day_calc * day_pct_calc + ppm_night_calc * night_pct_calc) / 100 if (day_pct_calc + night_pct_calc) > 0 else ppm_day_calc
 cur_fare_base = cur_ppu_avg + cur_ppm_avg * cur_duration
 ppu_weight = cur_ppu_avg / cur_fare_base if cur_fare_base > 0 else 0.4
 ppm_weight = (cur_ppm_avg * cur_duration) / cur_fare_base if cur_fare_base > 0 else 0.6
@@ -823,14 +1021,13 @@ price_decline = round(total_fare_change * weighted_elasticity, 1) if price_chang
 ppu_decline   = round(ppu_avg_change * ppu_elasticity * ppu_weight, 1) if price_changed else 0.0
 ppm_decline   = round(ppm_avg_change * ppm_elasticity * ppm_weight, 1) if price_changed else 0.0
 
-# ── 변경: calc_expected_trip_decline도 minute_limit 기준으로 수정 ──
 def calc_expected_trip_decline(df_glide_opz, df_glide_hour, opz_hour_limits, city, cur_trips, df_opz_list):
     try:
         total_excess_trips = 0
         for opz, minute_limit in opz_hour_limits.items():
             max_glide_min = get_opz_max_glide(df_opz_list, city, opz)
             if minute_limit == max_glide_min or minute_limit == 720:
-                continue  # No Change
+                continue
             day_row   = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="DAY")]
             night_row = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="NIGHT")]
             opz_glide = day_row["glidesum"].sum() + night_row["glidesum"].sum()
@@ -911,8 +1108,6 @@ s_c = calc_scenario(trip_drop_c)
 st.markdown('<div class="sub-step-header">STEP 3 · Result Summary</div>', unsafe_allow_html=True)
 
 bullets = []
-ppu_changed = (prop_ppu_day != ppu_day_calc or prop_ppu_night != ppu_night_calc)
-ppm_changed = (prop_ppm_day != ppm_day_calc or prop_ppm_night != ppm_night_calc)
 
 if glide_changed and price_changed:
     bullets.append(f"Combined Glide restriction and pricing changes increased Net Avg Fare by +{pct_fare:.1f}%")
@@ -1067,6 +1262,7 @@ st.markdown("""
         <li>Users exceeding the Glide time limit are assumed to fully churn (actual churn rate may be lower).</li>
         <li>PPU/PPM elasticity values are user-defined estimates rather than empirically observed metrics.</li>
         <li>Glide-driven and price-driven trip declines are calculated independently, and potential overlap is not accounted for.</li>
+        <li>Subs Free Unlock % uses the city-wide average across all OPZs (no OPZ-level breakdown available)</li>
     </ul>
     <div style="font-size:13px; font-weight:500; color:#212529; margin-top:14px;">
         ※ Results are based on a simplified model and should be used as reference values for scenario comparison, not absolute predictions.
