@@ -714,7 +714,7 @@ if city_price_row is not None:
             city_prop_ppu_night = st.number_input("PPU", value=int(city_price_row['ppu_night']), step=10, key=f"ppu_n_p_{selected_city}_city")
             city_prop_ppm_night = st.number_input("PPM", value=int(city_price_row['ppm_night']), step=10, key=f"ppm_n_p_{selected_city}_city")
 else:
-    st.info("도시 단위(opz 빈 행) 가격 데이터가 없습니다.")
+    st.info("No city-level pricing data (OPZ blank row)")
     city_prop_ppu_day = city_prop_ppm_day = city_prop_ppu_night = city_prop_ppm_night = 0
 
 st.markdown("<div style='margin:18px 0 10px;font-size:19px;font-weight:700;'>By OPZ</div>", unsafe_allow_html=True)
@@ -767,7 +767,7 @@ if price_opz_list:
             "ppu_night": p_ppu_night, "ppm_night": p_ppm_night,
         }
 else:
-    st.info(f"{selected_city} 가격 데이터가 없습니다.")
+    st.info(f"No pricing data for {selected_city}")
 
 # ══════════════════════════════════════════════════════
 # CALCULATION
