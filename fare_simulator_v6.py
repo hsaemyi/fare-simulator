@@ -106,8 +106,6 @@ with st.spinner("Loading data from Google Sheets..."):
         st.error(f"데이터 로드 실패: {e}")
         st.stop()
 
-st.write(df_gsma["city_name"].unique().tolist())  # ← 여기
-
 st.markdown("---")
 col_city, col_week = st.columns(2)
 
