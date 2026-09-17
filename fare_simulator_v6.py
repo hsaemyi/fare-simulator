@@ -501,13 +501,14 @@ def wow_badge_reverse(cur, prev):
     color = "#E24B4A" if pct > 0 else "#1D9E75"
     return f'<span style="font-size:11px;font-weight:600;color:{color};margin-left:6px;">{sign} {abs(pct):.1f}% WoW</span>'
 
-def compare_badge(cur, nation, fmt="num"):
+def compare_badge(cur, nation, fmt="num", reverse=False):
     if not nation or selected_city == "Country":
         return ""
     diff = cur - nation
     pct = diff / abs(nation) * 100 if nation != 0 else 0
     sign = "+" if diff >= 0 else ""
-    color = "#1D9E75" if diff >= 0 else "#E24B4A"
+    is_good = (diff <= 0) if reverse else (diff >= 0)
+    color = "#1D9E75" if is_good else "#E24B4A"
 
     if fmt == "money":
         nation_str = f"${nation:.2f}"
@@ -547,7 +548,7 @@ mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f
 
 r2c1, r2c2, r2c3, _ = st.columns(4)
 mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"DV: {cur_dv:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd, "money"))
-mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt, "money"))
+mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt, "money", reverse=True))
 mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct, "pct"))
 
 if selected_week == "L4W AVG":
