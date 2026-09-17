@@ -501,34 +501,48 @@ def wow_badge_reverse(cur, prev):
     color = "#E24B4A" if pct > 0 else "#1D9E75"
     return f'<span style="font-size:11px;font-weight:600;color:{color};margin-left:6px;">{sign} {abs(pct):.1f}% WoW</span>'
 
-def compare_badge(cur, nation):
+def compare_badge(cur, nation, fmt="num"):
     if not nation or selected_city == "Country":
         return ""
     diff = cur - nation
-    pct = diff / abs(nation) * 100
+    pct = diff / abs(nation) * 100 if nation != 0 else 0
     sign = "+" if diff >= 0 else ""
     color = "#1D9E75" if diff >= 0 else "#E24B4A"
-    return f'<div style="font-size:11px;color:{color};margin-top:2px;">vs KR avg {sign}{diff:.2f} ({sign}{pct:.1f}%)</div>'
+
+    if fmt == "money":
+        nation_str = f"${nation:.2f}"
+        diff_str = f"{sign}{diff:.2f}"
+    elif fmt == "pct":
+        nation_str = f"{nation:.1f}%"
+        diff_str = f"{sign}{diff:.1f}%p"
+    else:
+        nation_str = f"{nation:.2f}"
+        diff_str = f"{sign}{diff:.2f}"
+
+    return (
+        f'<span style="font-size:11px;font-weight:600;color:#333;margin-left:8px;">'
+        f'vs KR avg {nation_str} (<span style="color:{color};">{diff_str}, {sign}{pct:.1f}%</span>)'
+        f'</span>'
+    )
     
 def mcard(col, label, val, sub="", color=None, wow="", compare=""):
     color_style = f"color:{color};" if color else ""
     col.markdown(f"""<div class="metric-card">
         <div class="label">{label}</div>
-        <div class="value-main" style="{color_style}">{val}{wow}</div>
+        <div class="value-main" style="{color_style}">{val}{wow}{compare}</div>
         <div class="value-sub">{sub}</div>
-        {compare}
     </div>""", unsafe_allow_html=True)
 
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
-mcard(r1c1, "Net Avg Fare", f"${cur_net_avg_fare:.2f}", f"Gross Avg Fare: ${cur_gross_avg_fare:.2f}", color="#1D9E75", wow=wow_badge(cur_net_avg_fare, prev_net_avg_fare), compare=compare_badge(cur_net_avg_fare, cty_net_avg_fare))
-mcard(r1c2, "NRPVD",        f"${cur_nrpvd:.2f}",        f"Net Revenue: ${cur_net_rev:,.0f}",          wow=wow_badge(cur_nrpvd, prev_nrpvd), compare=compare_badge(cur_nrpvd, cty_nrpvd))
-mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_gross_rev:,.0f}",      wow=wow_badge(cur_grpvd, prev_grpvd), compare=compare_badge(cur_grpvd, cty_grpvd))
-mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd), compare=compare_badge(cur_tpvd, cty_tpvd))
+mcard(r1c1, "Net Avg Fare", f"${cur_net_avg_fare:.2f}", f"Gross Avg Fare: ${cur_gross_avg_fare:.2f}", color="#1D9E75", wow=wow_badge(cur_net_avg_fare, prev_net_avg_fare), compare=compare_badge(cur_net_avg_fare, cty_net_avg_fare, "money"))
+mcard(r1c2, "NRPVD",        f"${cur_nrpvd:.2f}",        f"Net Revenue: ${cur_net_rev:,.0f}",          wow=wow_badge(cur_nrpvd, prev_nrpvd), compare=compare_badge(cur_nrpvd, cty_nrpvd, "money"))
+mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_gross_rev:,.0f}",      wow=wow_badge(cur_grpvd, prev_grpvd), compare=compare_badge(cur_grpvd, cty_grpvd, "money"))
+mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd), compare=compare_badge(cur_tpvd, cty_tpvd, "num"))
 
 r2c1, r2c2, r2c3, _ = st.columns(4)
-mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd))
-mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt))
-mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", "", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct))
+mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd, "money"))
+mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt, "money"))
+mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", "", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct, "pct"))
 
 if selected_week == "L4W AVG":
     st.markdown("### 4-Week Trend")
@@ -552,23 +566,53 @@ if selected_week == "L4W AVG":
         trend_tpvd.append(round(t_tpvd, 2))
         trend_nrpvd.append(round(t_nrpvd, 2))
 
-    def render_trend(weeks, values, label):
+    def render_trend(weeks, values, label, kr_avg=None, fmt="num"):
         df = pd.DataFrame({"Week": weeks, label: values})
+
+        wow_list = [None]
+        for i in range(1, len(values)):
+            prev = values[i-1]
+            wow_list.append(round((values[i]-prev)/abs(prev)*100, 1) if prev else None)
+        df["WoW"] = [f"{'+' if w and w>0 else ''}{w}%" if w is not None else "-" for w in wow_list]
+
+        if kr_avg is not None:
+            if fmt == "money":
+                df["KR avg"] = f"${kr_avg:.2f}"
+            elif fmt == "pct":
+                df["KR avg"] = f"{kr_avg:.1f}%"
+            else:
+                df["KR avg"] = f"{kr_avg:.2f}"
+            tooltip_fields = [
+                alt.Tooltip("Week:N", title="Week"),
+                alt.Tooltip(f"{label}:Q", title=label, format=".2f"),
+                alt.Tooltip("WoW:N", title="WoW"),
+                alt.Tooltip("KR avg:N", title="KR avg"),
+            ]
+        else:
+            tooltip_fields = [
+                alt.Tooltip("Week:N", title="Week"),
+                alt.Tooltip(f"{label}:Q", title=label, format=".2f"),
+                alt.Tooltip("WoW:N", title="WoW"),
+            ]
+
         chart = alt.Chart(df).mark_line(point=True, color="#1F3864").encode(
-            x=alt.X("Week", sort=None, axis=alt.Axis(labelAngle=0), title=None),
-            y=alt.Y(label, scale=alt.Scale(zero=False, padding=10), title=None)
+            x=alt.X("Week:N", sort=None, axis=alt.Axis(labelAngle=0), title=None),
+            y=alt.Y(f"{label}:Q", scale=alt.Scale(zero=False, padding=10), title=None),
+            tooltip=tooltip_fields
         ).properties(height=180)
-        st.markdown(f'<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">{label}</div>', unsafe_allow_html=True)
-        st.markdown('<div style="border:1px solid #e0e0e0;border-radius:10px;padding:10px 12px;background:#fff;">', unsafe_allow_html=True)
-        st.altair_chart(chart, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown(f'<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">{label}</div>', unsafe_allow_html=True)
+            st.altair_chart(chart, use_container_width=True)
+            
+    _is_country = (selected_city == "Country")
 
     tcol1, tcol2 = st.columns(2)
     tcol3, tcol4 = st.columns(2)
-    with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare")
-    with tcol2: render_trend(trend_weeks, trend_tpvd, "TPVD")
-    with tcol3: render_trend(trend_weeks, trend_nrpvd, "NRPVD")
-    with tcol4: render_trend(trend_weeks, trend_l1pct, "L1 %")
+    with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare", kr_avg=None if _is_country else cty_net_avg_fare, fmt="money")
+    with tcol2: render_trend(trend_weeks, trend_tpvd, "TPVD", kr_avg=None if _is_country else cty_tpvd, fmt="num")
+    with tcol3: render_trend(trend_weeks, trend_nrpvd, "NRPVD", kr_avg=None if _is_country else cty_nrpvd, fmt="money")
+    with tcol4: render_trend(trend_weeks, trend_l1pct, "L1 %", kr_avg=None if _is_country else cty_l1_pct, fmt="pct")
 
 # ══════════════════════════════════════════════════════
 # STEP 1. GLIDE
