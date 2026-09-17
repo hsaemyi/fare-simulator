@@ -149,6 +149,38 @@ def get_metric(df_city, metric_name, week_col):
     except:
         return None
 
+def get_country_metric(df_gsma, metric_name, week_col, week_cols, offset=2):
+    try:
+        row = df_gsma[
+            (df_gsma["city_name"].str.strip() == "Country") &
+            (df_gsma["Metrics"].str.strip() == metric_name)
+        ]
+        if row.empty:
+            return None
+
+        if week_col == "L4W AVG":
+            last4 = week_cols[::-1][:4]
+            vals = []
+            for wc in last4:
+                col_idx = df_gsma.columns.get_loc(wc)
+                v = row.iloc[0, col_idx + offset]
+                if str(v).strip() in ["", "-", "N/A"]:
+                    continue
+                try:
+                    vals.append(float(str(v).replace("$","").replace("%","").replace(",","").strip()))
+                except:
+                    continue
+            return sum(vals)/len(vals) if vals else None
+
+        col_idx = df_gsma.columns.get_loc(week_col)
+        val = row.iloc[0, col_idx + offset]
+        if str(val).strip() in ["", "-", "N/A"]:
+            return None
+        val_str = str(val).replace("$","").replace("%","").replace(",","").strip()
+        return float(val_str)
+    except:
+        return None
+
 cur_dv        = get_metric(gsma_city, "DV",                    selected_week) or 0
 cur_trips     = get_metric(gsma_city, "Trips",                 selected_week) or 0
 cur_duration  = get_metric(gsma_city, "Avg Trip Length (min)", selected_week) or 5.3
@@ -165,6 +197,15 @@ cur_l1_profit      = cur_net_rev - cur_l1_cost
 cur_l1_pct         = cur_l1_profit / cur_net_rev * 100 if cur_net_rev > 0 else 0
 cur_cpt            = cur_l1_cost / cur_trips        if cur_trips > 0 else 0
 cur_vcd            = cur_l1_profit / cur_dv / 7    if cur_dv > 0    else 0
+
+cty_trips   = get_country_metric(df_gsma, "Trips",       selected_week, week_cols) or 0
+cty_net_rev = get_country_metric(df_gsma, "Net Revenue", selected_week, week_cols) or 0
+cty_l1_cost = get_country_metric(df_gsma, "L1 Cost",     selected_week, week_cols) or 0
+cty_dv      = get_country_metric(df_gsma, "DV",          selected_week, week_cols) or 0
+
+cty_net_avg_fare = cty_net_rev / cty_trips if cty_trips > 0 else 0
+cty_l1_profit    = cty_net_rev - cty_l1_cost
+cty_l1_pct       = cty_l1_profit / cty_net_rev * 100 if cty_net_rev > 0 else 0
 
 if selected_week == "L4W AVG":
     prev_week = None
@@ -449,16 +490,26 @@ def wow_badge_reverse(cur, prev):
     color = "#E24B4A" if pct > 0 else "#1D9E75"
     return f'<span style="font-size:11px;font-weight:600;color:{color};margin-left:6px;">{sign} {abs(pct):.1f}% WoW</span>'
 
-def mcard(col, label, val, sub="", color=None, wow=""):
+def compare_badge(cur, nation):
+    if not nation:
+        return ""
+    diff = cur - nation
+    pct = diff / abs(nation) * 100
+    sign = "+" if diff >= 0 else ""
+    color = "#1D9E75" if diff >= 0 else "#E24B4A"
+    return f'<div style="font-size:11px;color:{color};margin-top:2px;">전국 대비 {sign}{diff:.2f} ({sign}{pct:.1f}%)</div>'
+
+def mcard(col, label, val, sub="", color=None, wow="", compare=""):
     color_style = f"color:{color};" if color else ""
     col.markdown(f"""<div class="metric-card">
         <div class="label">{label}</div>
         <div class="value-main" style="{color_style}">{val}{wow}</div>
         <div class="value-sub">{sub}</div>
+        {compare}
     </div>""", unsafe_allow_html=True)
 
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
-mcard(r1c1, "Net Avg Fare", f"${cur_net_avg_fare:.2f}", f"Gross Avg Fare: ${cur_gross_avg_fare:.2f}", color="#1D9E75", wow=wow_badge(cur_net_avg_fare, prev_net_avg_fare))
+mcard(r1c1, "Net Avg Fare", f"${cur_net_avg_fare:.2f}", f"Gross Avg Fare: ${cur_gross_avg_fare:.2f}", color="#1D9E75", wow=wow_badge(cur_net_avg_fare, prev_net_avg_fare), compare=compare_badge(cur_net_avg_fare, cty_net_avg_fare))
 mcard(r1c2, "NRPVD",        f"${cur_nrpvd:.2f}",        f"Net Revenue: ${cur_net_rev:,.0f}",          wow=wow_badge(cur_nrpvd, prev_nrpvd))
 mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_gross_rev:,.0f}",      wow=wow_badge(cur_grpvd, prev_grpvd))
 mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd))
@@ -477,7 +528,46 @@ r2c2.markdown(f"""<div class="metric-card">
 r2c3.markdown(f"""<div class="metric-card">
     <div class="label">L1 %</div>
     <div class="value-main">{cur_l1_pct:.1f}%{wow_badge(cur_l1_pct, prev_l1_pct)}</div>
+    {compare_badge(cur_l1_pct, cty_l1_pct)}
 </div>""", unsafe_allow_html=True)
+
+if selected_week == "L4W AVG":
+    st.markdown("### 4-Week Trend")
+    trend_weeks = week_cols[::-1][:4][::-1]
+
+    trend_fare, trend_l1pct, trend_tpvd, trend_nrpvd = [], [], [], []
+    for wc in trend_weeks:
+        t_trips   = get_metric(gsma_city, "Trips", wc) or 0
+        t_net_rev = get_metric(gsma_city, "Net Revenue", wc) or 0
+        t_l1_cost = get_metric(gsma_city, "L1 Cost", wc) or 0
+        t_dv      = get_metric(gsma_city, "DV", wc) or 0
+
+        t_fare      = t_net_rev / t_trips if t_trips > 0 else 0
+        t_l1_profit = t_net_rev - t_l1_cost
+        t_l1_pct    = t_l1_profit / t_net_rev * 100 if t_net_rev > 0 else 0
+        t_tpvd      = (t_trips / 7) / t_dv if t_dv > 0 else 0
+        t_nrpvd     = (t_net_rev / 7) / t_dv if t_dv > 0 else 0
+
+        trend_fare.append(round(t_fare, 2))
+        trend_l1pct.append(round(t_l1_pct, 1))
+        trend_tpvd.append(round(t_tpvd, 2))
+        trend_nrpvd.append(round(t_nrpvd, 2))
+
+    tcol1, tcol2 = st.columns(2)
+    tcol3, tcol4 = st.columns(2)
+
+    with tcol1:
+        st.caption("Net Avg Fare (USD)")
+        st.line_chart(pd.DataFrame({"Net Avg Fare": trend_fare}, index=trend_weeks))
+    with tcol2:
+        st.caption("L1 %")
+        st.line_chart(pd.DataFrame({"L1 %": trend_l1pct}, index=trend_weeks))
+    with tcol3:
+        st.caption("TPVD")
+        st.line_chart(pd.DataFrame({"TPVD": trend_tpvd}, index=trend_weeks))
+    with tcol4:
+        st.caption("NRPVD")
+        st.line_chart(pd.DataFrame({"NRPVD": trend_nrpvd}, index=trend_weeks))
 
 # ══════════════════════════════════════════════════════
 # STEP 1. GLIDE
