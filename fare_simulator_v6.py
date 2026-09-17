@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import gspread
+import altair as alt
+
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Net Avg Fare Simulator", layout="wide")
@@ -198,14 +199,23 @@ cur_l1_pct         = cur_l1_profit / cur_net_rev * 100 if cur_net_rev > 0 else 0
 cur_cpt            = cur_l1_cost / cur_trips        if cur_trips > 0 else 0
 cur_vcd            = cur_l1_profit / cur_dv / 7    if cur_dv > 0    else 0
 
-cty_trips   = get_country_metric(df_gsma, "Trips",       selected_week, week_cols) or 0
-cty_net_rev = get_country_metric(df_gsma, "Net Revenue", selected_week, week_cols) or 0
-cty_l1_cost = get_country_metric(df_gsma, "L1 Cost",     selected_week, week_cols) or 0
-cty_dv      = get_country_metric(df_gsma, "DV",          selected_week, week_cols) or 0
+_offset = 0 if selected_city == "Country" else 2
+
+cty_trips   = get_country_metric(df_gsma, "Trips",       selected_week, week_cols, offset=_offset) or 0
+cty_net_rev = get_country_metric(df_gsma, "Net Revenue", selected_week, week_cols, offset=_offset) or 0
+cty_l1_cost = get_country_metric(df_gsma, "L1 Cost",     selected_week, week_cols, offset=_offset) or 0
+cty_dv      = get_country_metric(df_gsma, "DV",          selected_week, week_cols, offset=_offset) or 0
 
 cty_net_avg_fare = cty_net_rev / cty_trips if cty_trips > 0 else 0
 cty_l1_profit    = cty_net_rev - cty_l1_cost
 cty_l1_pct       = cty_l1_profit / cty_net_rev * 100 if cty_net_rev > 0 else 0
+cty_nrpvd        = (cty_net_rev / 7) / cty_dv if cty_dv > 0 else 0
+
+cty_gross_rev = get_country_metric(df_gsma, "Gross Revenue", selected_week, week_cols, offset=_offset) or 0
+cty_grpvd     = (cty_gross_rev / 7) / cty_dv if cty_dv > 0 else 0
+cty_tpvd      = (cty_trips / 7) / cty_dv if cty_dv > 0 else 0
+cty_cpt       = cty_l1_cost / cty_trips if cty_trips > 0 else 0
+cty_vcd       = cty_l1_profit / cty_dv / 7 if cty_dv > 0 else 0
 
 if selected_week == "L4W AVG":
     prev_week = None
@@ -491,14 +501,14 @@ def wow_badge_reverse(cur, prev):
     return f'<span style="font-size:11px;font-weight:600;color:{color};margin-left:6px;">{sign} {abs(pct):.1f}% WoW</span>'
 
 def compare_badge(cur, nation):
-    if not nation:
+    if not nation or selected_city == "Country":
         return ""
     diff = cur - nation
     pct = diff / abs(nation) * 100
     sign = "+" if diff >= 0 else ""
     color = "#1D9E75" if diff >= 0 else "#E24B4A"
     return f'<div style="font-size:11px;color:{color};margin-top:2px;">전국 대비 {sign}{diff:.2f} ({sign}{pct:.1f}%)</div>'
-
+    
 def mcard(col, label, val, sub="", color=None, wow="", compare=""):
     color_style = f"color:{color};" if color else ""
     col.markdown(f"""<div class="metric-card">
@@ -510,16 +520,15 @@ def mcard(col, label, val, sub="", color=None, wow="", compare=""):
 
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 mcard(r1c1, "Net Avg Fare", f"${cur_net_avg_fare:.2f}", f"Gross Avg Fare: ${cur_gross_avg_fare:.2f}", color="#1D9E75", wow=wow_badge(cur_net_avg_fare, prev_net_avg_fare), compare=compare_badge(cur_net_avg_fare, cty_net_avg_fare))
-mcard(r1c2, "NRPVD",        f"${cur_nrpvd:.2f}",        f"Net Revenue: ${cur_net_rev:,.0f}",          wow=wow_badge(cur_nrpvd, prev_nrpvd))
-mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_gross_rev:,.0f}",      wow=wow_badge(cur_grpvd, prev_grpvd))
-mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd))
+mcard(r1c2, "NRPVD",        f"${cur_nrpvd:.2f}",        f"Net Revenue: ${cur_net_rev:,.0f}",          wow=wow_badge(cur_nrpvd, prev_nrpvd), compare=compare_badge(cur_nrpvd, cty_nrpvd))
+mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_gross_rev:,.0f}",      wow=wow_badge(cur_grpvd, prev_grpvd), compare=compare_badge(cur_grpvd, cty_grpvd))
+mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd), compare=compare_badge(cur_tpvd, cty_tpvd))
 
 r2c1, r2c2, r2c3, _ = st.columns(4)
-r2c1.markdown(f"""<div class="metric-card">
-    <div class="label">VCD</div>
-    <div class="value-main">${cur_vcd:.2f}{wow_badge(cur_vcd, prev_vcd)}</div>
-    <div class="value-sub">L1 Profit: ${cur_l1_profit:,.0f}</div>
-</div>""", unsafe_allow_html=True)
+mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd))
+mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt))
+mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", "", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct))
+
 r2c2.markdown(f"""<div class="metric-card">
     <div class="label">CPT</div>
     <div class="value-main">${cur_cpt:.2f}{wow_badge_reverse(cur_cpt, prev_cpt)}</div>
@@ -553,21 +562,21 @@ if selected_week == "L4W AVG":
         trend_tpvd.append(round(t_tpvd, 2))
         trend_nrpvd.append(round(t_nrpvd, 2))
 
+    def render_trend(weeks, values, label):
+        df = pd.DataFrame({"Week": weeks, label: values})
+        chart = alt.Chart(df).mark_line(point=True, color="#1F3864").encode(
+            x=alt.X("Week", sort=None, axis=alt.Axis(labelAngle=0), title=None),
+            y=alt.Y(label, scale=alt.Scale(zero=False, padding=10), title=None)
+        ).properties(height=180)
+        st.caption(label)
+        st.altair_chart(chart, use_container_width=True)
+
     tcol1, tcol2 = st.columns(2)
     tcol3, tcol4 = st.columns(2)
-
-    with tcol1:
-        st.caption("Net Avg Fare (USD)")
-        st.line_chart(pd.DataFrame({"Net Avg Fare": trend_fare}, index=trend_weeks))
-    with tcol2:
-        st.caption("L1 %")
-        st.line_chart(pd.DataFrame({"L1 %": trend_l1pct}, index=trend_weeks))
-    with tcol3:
-        st.caption("TPVD")
-        st.line_chart(pd.DataFrame({"TPVD": trend_tpvd}, index=trend_weeks))
-    with tcol4:
-        st.caption("NRPVD")
-        st.line_chart(pd.DataFrame({"NRPVD": trend_nrpvd}, index=trend_weeks))
+    with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare")
+    with tcol2: render_trend(trend_weeks, trend_l1pct, "L1 %")
+    with tcol3: render_trend(trend_weeks, trend_tpvd, "TPVD")
+    with tcol4: render_trend(trend_weeks, trend_nrpvd, "NRPVD")
 
 # ══════════════════════════════════════════════════════
 # STEP 1. GLIDE
