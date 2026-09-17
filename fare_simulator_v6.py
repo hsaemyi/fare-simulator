@@ -214,16 +214,6 @@ cty_l1_cost = get_country_metric(df_gsma, "L1 Cost",     selected_week, week_col
 cty_dv      = get_country_metric(df_gsma, "DV",          selected_week, week_cols, offset=_offset) or 0
 
 cty_net_avg_fare = cty_net_rev / cty_trips if cty_trips > 0 else 0
-if selected_city != "Country":
-    _debug_last4 = week_cols[::-1][:4]
-    _debug_rows = []
-    for wc in _debug_last4:
-        _col_idx = df_gsma.columns.get_loc(wc)
-        _row = df_gsma[(df_gsma["city_name"].str.strip()=="Country") & (df_gsma["Metrics"].str.strip()=="Net Revenue")]
-        _val_at_offset = _row.iloc[0, _col_idx + _offset] if not _row.empty else "N/A"
-        _debug_rows.append(f"{wc}(col{_col_idx}+off{_offset}={_col_idx+_offset}): {_val_at_offset}")
-    st.write("DEBUG Net Revenue columns read:", _debug_rows)
-    st.write("DEBUG columns list:", list(df_gsma.columns))
 cty_l1_profit    = cty_net_rev - cty_l1_cost
 cty_l1_pct       = cty_l1_profit / cty_net_rev * 100 if cty_net_rev > 0 else 0
 cty_nrpvd        = (cty_net_rev / 7) / cty_dv if cty_dv > 0 else 0
