@@ -546,13 +546,13 @@ mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_g
 mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd), compare=compare_badge(cur_tpvd, cty_tpvd, "num"))
 
 r2c1, r2c2, r2c3, _ = st.columns(4)
-mcard(r2c1, "VCD", f"${cur_vcd:.2f}", "", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd, "money"))
+mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"DV: {cur_dv:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd, "money"))
 mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt, "money"))
 mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct, "pct"))
 
 if selected_week == "L4W AVG":
     st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
-    st.markdown("### 4-Week Trend")
+    st.markdown("<div style='font-size:16px;font-weight:600;color:#1a1a2e;margin-bottom:8px;'>4-Week Trend</div>", unsafe_allow_html=True)
     trend_weeks = week_cols[::-1][:4][::-1]
     
     trend_fare, trend_l1pct, trend_tpvd, trend_nrpvd = [], [], [], []
