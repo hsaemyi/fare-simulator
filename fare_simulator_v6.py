@@ -508,7 +508,7 @@ def compare_badge(cur, nation):
     pct = diff / abs(nation) * 100
     sign = "+" if diff >= 0 else ""
     color = "#1D9E75" if diff >= 0 else "#E24B4A"
-    return f'<div style="font-size:11px;color:{color};margin-top:2px;">전국 대비 {sign}{diff:.2f} ({sign}{pct:.1f}%)</div>'
+    return f'<div style="font-size:11px;color:{color};margin-top:2px;">vs KR avg {sign}{diff:.2f} ({sign}{pct:.1f}%)</div>'
     
 def mcard(col, label, val, sub="", color=None, wow="", compare=""):
     color_style = f"color:{color};" if color else ""
@@ -529,17 +529,6 @@ r2c1, r2c2, r2c3, _ = st.columns(4)
 mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd))
 mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt))
 mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", "", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct))
-
-r2c2.markdown(f"""<div class="metric-card">
-    <div class="label">CPT</div>
-    <div class="value-main">${cur_cpt:.2f}{wow_badge_reverse(cur_cpt, prev_cpt)}</div>
-    <div class="value-sub">L1 Cost: ${cur_l1_cost:,.0f}</div>
-</div>""", unsafe_allow_html=True)
-r2c3.markdown(f"""<div class="metric-card">
-    <div class="label">L1 %</div>
-    <div class="value-main">{cur_l1_pct:.1f}%{wow_badge(cur_l1_pct, prev_l1_pct)}</div>
-    {compare_badge(cur_l1_pct, cty_l1_pct)}
-</div>""", unsafe_allow_html=True)
 
 if selected_week == "L4W AVG":
     st.markdown("### 4-Week Trend")
@@ -569,15 +558,17 @@ if selected_week == "L4W AVG":
             x=alt.X("Week", sort=None, axis=alt.Axis(labelAngle=0), title=None),
             y=alt.Y(label, scale=alt.Scale(zero=False, padding=10), title=None)
         ).properties(height=180)
-        st.caption(label)
+        st.markdown(f'<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">{label}</div>', unsafe_allow_html=True)
+        st.markdown('<div style="border:1px solid #e0e0e0;border-radius:10px;padding:10px 12px;background:#fff;">', unsafe_allow_html=True)
         st.altair_chart(chart, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     tcol1, tcol2 = st.columns(2)
     tcol3, tcol4 = st.columns(2)
     with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare")
-    with tcol2: render_trend(trend_weeks, trend_l1pct, "L1 %")
-    with tcol3: render_trend(trend_weeks, trend_tpvd, "TPVD")
-    with tcol4: render_trend(trend_weeks, trend_nrpvd, "NRPVD")
+    with tcol2: render_trend(trend_weeks, trend_tpvd, "TPVD")
+    with tcol3: render_trend(trend_weeks, trend_nrpvd, "NRPVD")
+    with tcol4: render_trend(trend_weeks, trend_l1pct, "L1 %")
 
 # ══════════════════════════════════════════════════════
 # STEP 1. GLIDE
