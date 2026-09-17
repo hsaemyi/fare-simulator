@@ -535,16 +535,19 @@ def mcard(col, label, val, sub="", color=None, wow="", compare=""):
         f'<div style="background:#f0f2f5;border-radius:6px;padding:4px 10px;margin-left:8px;white-space:nowrap;">{compare}</div>'
         if compare else ""
     )
-    col.markdown(f"""<div class="metric-card">
-        <div class="label">{label}</div>
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
-            <div>
-                <div class="value-main" style="{color_style}">{val}{wow}</div>
-                <div class="value-sub">{sub}</div>
-            </div>
-            {compare_box}
-        </div>
-    </div>""", unsafe_allow_html=True)
+    html = (
+        '<div class="metric-card">'
+        f'<div class="label">{label}</div>'
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;">'
+        '<div>'
+        f'<div class="value-main" style="{color_style}">{val}{wow}</div>'
+        f'<div class="value-sub">{sub}</div>'
+        '</div>'
+        f'{compare_box}'
+        '</div>'
+        '</div>'
+    )
+    col.markdown(html, unsafe_allow_html=True)
 
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 mcard(r1c1, "Net Avg Fare", f"${cur_net_avg_fare:.2f}", f"Gross Avg Fare: ${cur_gross_avg_fare:.2f}", color="#1D9E75", wow=wow_badge(cur_net_avg_fare, prev_net_avg_fare), compare=compare_badge(cur_net_avg_fare, cty_net_avg_fare, "money"))
