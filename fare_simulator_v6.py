@@ -511,17 +511,14 @@ def compare_badge(cur, nation, fmt="num"):
 
     if fmt == "money":
         nation_str = f"${nation:.2f}"
-        diff_str = f"{sign}{diff:.2f}"
     elif fmt == "pct":
         nation_str = f"{nation:.1f}%"
-        diff_str = f"{sign}{diff:.1f}%p"
     else:
         nation_str = f"{nation:.2f}"
-        diff_str = f"{sign}{diff:.2f}"
 
     return (
-        f'<span style="font-size:11px;font-weight:600;color:#333;margin-left:8px;">'
-        f'vs KR avg {nation_str} (<span style="color:{color};">{diff_str}, {sign}{pct:.1f}%</span>)'
+        f'<span style="font-size:11px;font-weight:600;color:#333;">'
+        f'vs KR avg <span style="color:{color};">{nation_str} ({sign}{pct:.1f}%)</span>'
         f'</span>'
     )
     
@@ -549,14 +546,15 @@ mcard(r1c3, "GRPVD",        f"${cur_grpvd:.2f}",        f"Gross Revenue: ${cur_g
 mcard(r1c4, "TPVD",         f"{cur_tpvd:.2f}",          f"Trips: {cur_trips:,.0f}",                   wow=wow_badge(cur_tpvd, prev_tpvd), compare=compare_badge(cur_tpvd, cty_tpvd, "num"))
 
 r2c1, r2c2, r2c3, _ = st.columns(4)
-mcard(r2c1, "VCD", f"${cur_vcd:.2f}", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd, "money"))
+mcard(r2c1, "VCD", f"${cur_vcd:.2f}", "", wow=wow_badge(cur_vcd, prev_vcd), compare=compare_badge(cur_vcd, cty_vcd, "money"))
 mcard(r2c2, "CPT", f"${cur_cpt:.2f}", f"L1 Cost: ${cur_l1_cost:,.0f}", wow=wow_badge_reverse(cur_cpt, prev_cpt), compare=compare_badge(cur_cpt, cty_cpt, "money"))
-mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", "", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct, "pct"))
+mcard(r2c3, "L1 %", f"{cur_l1_pct:.1f}%", f"L1 Profit: ${cur_l1_profit:,.0f}", wow=wow_badge(cur_l1_pct, prev_l1_pct), compare=compare_badge(cur_l1_pct, cty_l1_pct, "pct"))
 
 if selected_week == "L4W AVG":
+    st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
     st.markdown("### 4-Week Trend")
     trend_weeks = week_cols[::-1][:4][::-1]
-
+    
     trend_fare, trend_l1pct, trend_tpvd, trend_nrpvd = [], [], [], []
     trend_kr_fare, trend_kr_l1pct, trend_kr_tpvd, trend_kr_nrpvd = [], [], [], []
     for wc in trend_weeks:
@@ -646,13 +644,12 @@ if selected_week == "L4W AVG":
             
     _is_country = (selected_city == "Country")
 
-    tcol1, tcol2 = st.columns(2)
-    tcol3, tcol4 = st.columns(2)
+    tcol1, tcol2, tcol3, tcol4 = st.columns(4)
     with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare", kr_avgs=None if _is_country else trend_kr_fare, fmt="money")
     with tcol2: render_trend(trend_weeks, trend_tpvd, "TPVD", kr_avgs=None if _is_country else trend_kr_tpvd, fmt="num")
     with tcol3: render_trend(trend_weeks, trend_nrpvd, "NRPVD", kr_avgs=None if _is_country else trend_kr_nrpvd, fmt="money")
     with tcol4: render_trend(trend_weeks, trend_l1pct, "L1 %", kr_avgs=None if _is_country else trend_kr_l1pct, fmt="pct")
-
+    
 # ══════════════════════════════════════════════════════
 # STEP 1. GLIDE
 # ══════════════════════════════════════════════════════
