@@ -529,8 +529,10 @@ def mcard(col, label, val, sub="", color=None, wow="", compare=""):
     color_style = f"color:{color};" if color else ""
     col.markdown(f"""<div class="metric-card">
         <div class="label">{label}</div>
-        <div class="value-main" style="{color_style}">{val}{wow}{compare}</div>
-        <div class="value-sub">{sub}</div>
+        <div class="value-main" style="{color_style}">{val}</div>
+        <div style="margin-top:2px;">{wow}</div>
+        <div style="margin-top:2px;">{compare}</div>
+        <div class="value-sub" style="margin-top:6px;">{sub}</div>
     </div>""", unsafe_allow_html=True)
 
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
@@ -549,6 +551,7 @@ if selected_week == "L4W AVG":
     trend_weeks = week_cols[::-1][:4][::-1]
 
     trend_fare, trend_l1pct, trend_tpvd, trend_nrpvd = [], [], [], []
+    trend_kr_fare, trend_kr_l1pct, trend_kr_tpvd, trend_kr_nrpvd = [], [], [], []
     for wc in trend_weeks:
         t_trips   = get_metric(gsma_city, "Trips", wc) or 0
         t_net_rev = get_metric(gsma_city, "Net Revenue", wc) or 0
@@ -566,7 +569,23 @@ if selected_week == "L4W AVG":
         trend_tpvd.append(round(t_tpvd, 2))
         trend_nrpvd.append(round(t_nrpvd, 2))
 
-    def render_trend(weeks, values, label, kr_avg=None, fmt="num"):
+        k_trips   = get_country_metric(df_gsma, "Trips",       wc, week_cols, offset=2) or 0
+        k_net_rev = get_country_metric(df_gsma, "Net Revenue", wc, week_cols, offset=2) or 0
+        k_l1_cost = get_country_metric(df_gsma, "L1 Cost",     wc, week_cols, offset=2) or 0
+        k_dv      = get_country_metric(df_gsma, "DV",          wc, week_cols, offset=2) or 0
+
+        k_fare      = k_net_rev / k_trips if k_trips > 0 else 0
+        k_l1_profit = k_net_rev - k_l1_cost
+        k_l1_pct    = k_l1_profit / k_net_rev * 100 if k_net_rev > 0 else 0
+        k_tpvd      = (k_trips / 7) / k_dv if k_dv > 0 else 0
+        k_nrpvd     = (k_net_rev / 7) / k_dv if k_dv > 0 else 0
+
+        trend_kr_fare.append(round(k_fare, 2))
+        trend_kr_l1pct.append(round(k_l1_pct, 1))
+        trend_kr_tpvd.append(round(k_tpvd, 2))
+        trend_kr_nrpvd.append(round(k_nrpvd, 2))
+
+    def render_trend(weeks, values, label, kr_avgs=None, fmt="num"):
         df = pd.DataFrame({"Week": weeks, label: values})
 
         wow_list = [None]
@@ -575,13 +594,13 @@ if selected_week == "L4W AVG":
             wow_list.append(round((values[i]-prev)/abs(prev)*100, 1) if prev else None)
         df["WoW"] = [f"{'+' if w and w>0 else ''}{w}%" if w is not None else "-" for w in wow_list]
 
-        if kr_avg is not None:
+        if kr_avgs is not None:
             if fmt == "money":
-                df["KR avg"] = f"${kr_avg:.2f}"
+                df["KR avg"] = [f"${k:.2f}" for k in kr_avgs]
             elif fmt == "pct":
-                df["KR avg"] = f"{kr_avg:.1f}%"
+                df["KR avg"] = [f"{k:.1f}%" for k in kr_avgs]
             else:
-                df["KR avg"] = f"{kr_avg:.2f}"
+                df["KR avg"] = [f"{k:.2f}" for k in kr_avgs]
             tooltip_fields = [
                 alt.Tooltip("Week:N", title="Week"),
                 alt.Tooltip(f"{label}:Q", title=label, format=".2f"),
@@ -609,10 +628,10 @@ if selected_week == "L4W AVG":
 
     tcol1, tcol2 = st.columns(2)
     tcol3, tcol4 = st.columns(2)
-    with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare", kr_avg=None if _is_country else cty_net_avg_fare, fmt="money")
-    with tcol2: render_trend(trend_weeks, trend_tpvd, "TPVD", kr_avg=None if _is_country else cty_tpvd, fmt="num")
-    with tcol3: render_trend(trend_weeks, trend_nrpvd, "NRPVD", kr_avg=None if _is_country else cty_nrpvd, fmt="money")
-    with tcol4: render_trend(trend_weeks, trend_l1pct, "L1 %", kr_avg=None if _is_country else cty_l1_pct, fmt="pct")
+    with tcol1: render_trend(trend_weeks, trend_fare, "Net Avg Fare", kr_avgs=None if _is_country else trend_kr_fare, fmt="money")
+    with tcol2: render_trend(trend_weeks, trend_tpvd, "TPVD", kr_avgs=None if _is_country else trend_kr_tpvd, fmt="num")
+    with tcol3: render_trend(trend_weeks, trend_nrpvd, "NRPVD", kr_avgs=None if _is_country else trend_kr_nrpvd, fmt="money")
+    with tcol4: render_trend(trend_weeks, trend_l1pct, "L1 %", kr_avgs=None if _is_country else trend_kr_l1pct, fmt="pct")
 
 # ══════════════════════════════════════════════════════
 # STEP 1. GLIDE
