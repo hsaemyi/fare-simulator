@@ -202,16 +202,25 @@ def wow_badge(cur, prev):
     color = "#1D9E75" if pct > 0 else "#E24B4A"
     return f'<span style="font-size:11px;font-weight:600;color:{color};margin-left:6px;">{sign} {abs(pct):.1f}% WoW</span>'
 
-try:
-    week_num = int("".join(filter(str.isdigit, selected_week)))
-except:
-    week_num = 18
+if selected_week == "L4W AVG":
+    week_num = []
+    for wc in week_cols[::-1][:4]:
+        try:
+            week_num.append(int("".join(filter(str.isdigit, wc))))
+        except:
+            continue
+else:
+    try:
+        week_num = int("".join(filter(str.isdigit, selected_week)))
+    except:
+        week_num = 18
 
 def get_sub_metrics(df_sub, city, week_num):
     try:
+        week_list = week_num if isinstance(week_num, list) else [week_num]
         df_f = df_sub[
             (df_sub["city_name"].str.strip() == city) &
-            (df_sub["week_num"].astype(str).str.strip() == str(week_num))
+            (df_sub["week_num"].astype(str).str.strip().isin([str(w) for w in week_list]))
         ].copy()
         df_f["trips_total"] = pd.to_numeric(df_f["trips_total"], errors="coerce").fillna(0)
         total = df_f["trips_total"].sum()
@@ -237,9 +246,10 @@ subs_night = subs_night if subs_night is not None else 0
 
 def get_glide_by_opz(df_glide, city, week_num):
     try:
+        week_list = week_num if isinstance(week_num, list) else [week_num]
         df_f = df_glide[
             (df_glide["city"].str.strip() == city) &
-            (df_glide["weeknum"].astype(str).str.strip() == str(week_num))
+            (df_glide["weeknum"].astype(str).str.strip().isin([str(w) for w in week_list]))
         ].copy()
         for col in ["glidesum", "noglide", "total_trips"]:
             df_f[col] = pd.to_numeric(df_f[col], errors="coerce").fillna(0)
