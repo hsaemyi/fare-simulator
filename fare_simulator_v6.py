@@ -112,8 +112,14 @@ st.markdown("---")
 col_city, col_week = st.columns(2)
 
 with col_city:
-    cities = sorted(df_gsma["city_name"].dropna().unique().tolist())
-    cities = [c for c in cities if c.strip() != ""]
+    all_cities = df_gsma["city_name"].dropna().unique().tolist()
+    all_cities = [c for c in all_cities if c.strip() != ""]
+
+    priority_order = ["Country", "Namyangju", "Songpa", "Hanam", "Wirye"]
+    priority_cities = [c for c in priority_order if c in all_cities]
+    rest_cities = sorted([c for c in all_cities if c not in priority_order])
+    cities = priority_cities + rest_cities
+
     selected_city = st.selectbox("City", cities,
                                   index=cities.index("Namyangju") if "Namyangju" in cities else 0)
 
