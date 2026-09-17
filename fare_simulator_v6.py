@@ -527,12 +527,19 @@ def compare_badge(cur, nation, fmt="num"):
     
 def mcard(col, label, val, sub="", color=None, wow="", compare=""):
     color_style = f"color:{color};" if color else ""
+    compare_box = (
+        f'<div style="background:#f0f2f5;border-radius:6px;padding:4px 10px;margin-left:8px;white-space:nowrap;">{compare}</div>'
+        if compare else ""
+    )
     col.markdown(f"""<div class="metric-card">
         <div class="label">{label}</div>
-        <div class="value-main" style="{color_style}">{val}</div>
-        <div style="margin-top:2px;">{wow}</div>
-        <div style="margin-top:2px;">{compare}</div>
-        <div class="value-sub" style="margin-top:6px;">{sub}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+                <div class="value-main" style="{color_style}">{val}{wow}</div>
+                <div class="value-sub">{sub}</div>
+            </div>
+            {compare_box}
+        </div>
     </div>""", unsafe_allow_html=True)
 
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
@@ -614,11 +621,24 @@ if selected_week == "L4W AVG":
                 alt.Tooltip("WoW:N", title="WoW"),
             ]
 
-        chart = alt.Chart(df).mark_line(point=True, color="#1F3864").encode(
+        main_line = alt.Chart(df).mark_line(point=True, color="#1F3864").encode(
             x=alt.X("Week:N", sort=None, axis=alt.Axis(labelAngle=0), title=None),
             y=alt.Y(f"{label}:Q", scale=alt.Scale(zero=False, padding=10), title=None),
             tooltip=tooltip_fields
-        ).properties(height=180)
+        )
+
+        if kr_avgs is not None:
+            df_kr = pd.DataFrame({"Week": weeks, "KR_line": kr_avgs})
+            kr_line = alt.Chart(df_kr).mark_line(
+                color="#bbbbbb", strokeDash=[4, 3], strokeWidth=2
+            ).encode(
+                x=alt.X("Week:N", sort=None),
+                y=alt.Y("KR_line:Q"),
+                tooltip=[alt.Tooltip("KR_line:Q", title="KR avg", format=".2f")]
+            )
+            chart = (kr_line + main_line).properties(height=180)
+        else:
+            chart = main_line.properties(height=180)
 
         with st.container(border=True):
             st.markdown(f'<div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">{label}</div>', unsafe_allow_html=True)
