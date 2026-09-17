@@ -600,6 +600,17 @@ if selected_week == "L4W AVG":
         df["WoW"] = [f"{'+' if w and w>0 else ''}{w}%" if w is not None else "-" for w in wow_list]
 
         if kr_avgs is not None:
+            diff_list = []
+            for v, k in zip(values, kr_avgs):
+                d = v - k
+                p = (d / abs(k) * 100) if k else 0
+                sign = "+" if d >= 0 else ""
+                if fmt == "pct":
+                    diff_list.append(f"{sign}{d:.1f}%p ({sign}{p:.1f}%)")
+                else:
+                    diff_list.append(f"{sign}{d:.2f} ({sign}{p:.1f}%)")
+            df["vs KR"] = diff_list
+
             if fmt == "money":
                 df["KR avg"] = [f"${k:.2f}" for k in kr_avgs]
             elif fmt == "pct":
@@ -611,6 +622,7 @@ if selected_week == "L4W AVG":
                 alt.Tooltip(f"{label}:Q", title=label, format=".2f"),
                 alt.Tooltip("WoW:N", title="WoW"),
                 alt.Tooltip("KR avg:N", title="KR avg"),
+                alt.Tooltip("vs KR:N", title="vs KR avg"),
             ]
         else:
             tooltip_fields = [
