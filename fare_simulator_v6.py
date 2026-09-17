@@ -118,8 +118,8 @@ with col_city:
 week_cols = [c for c in df_gsma.columns if c.strip().startswith("Week")]
 
 with col_week:
-    selected_week = st.selectbox("Week", week_cols[::-1])
-
+    selected_week = st.selectbox("Week", ["L4W AVG"] + week_cols[::-1])
+    
 gsma_city = df_gsma[df_gsma["city_name"] == selected_city].reset_index(drop=True)
 
 def get_metric(df_city, metric_name, week_col):
@@ -127,6 +127,20 @@ def get_metric(df_city, metric_name, week_col):
         row = df_city[df_city["Metrics"].str.strip() == metric_name]
         if row.empty:
             return None
+
+        if week_col == "L4W AVG":
+            last4 = week_cols[::-1][:4]
+            vals = []
+            for wc in last4:
+                v = row.iloc[0][wc]
+                if str(v).strip() in ["", "-", "N/A"]:
+                    continue
+                try:
+                    vals.append(float(str(v).replace("$","").replace("%","").replace(",","").strip()))
+                except:
+                    continue
+            return sum(vals)/len(vals) if vals else None
+            
         val = row.iloc[0][week_col]
         if str(val).strip() in ["", "-", "N/A"]:
             return None
@@ -152,9 +166,12 @@ cur_l1_pct         = cur_l1_profit / cur_net_rev * 100 if cur_net_rev > 0 else 0
 cur_cpt            = cur_l1_cost / cur_trips        if cur_trips > 0 else 0
 cur_vcd            = cur_l1_profit / cur_dv / 7    if cur_dv > 0    else 0
 
-prev_week_idx = week_cols[::-1].index(selected_week)
-prev_week = week_cols[::-1][prev_week_idx + 1] if prev_week_idx + 1 < len(week_cols) else None
-
+if selected_week == "L4W AVG":
+    prev_week = None
+else:
+    prev_week_idx = week_cols[::-1].index(selected_week)
+    prev_week = week_cols[::-1][prev_week_idx + 1] if prev_week_idx + 1 < len(week_cols) else None
+    
 def get_wow(metric_name):
     if prev_week is None:
         return None
