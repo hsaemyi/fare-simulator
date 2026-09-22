@@ -1290,12 +1290,6 @@ if total_expected_decline > 0:
         unsafe_allow_html=True
     )
 
-st.write("DEBUG decline", {
-    "cur_trips (GSMA)": cur_trips,
-    "glide_sheet_total_trips": df_glide_opz["total_trips"].sum(),
-    "expected_decline_glide": expected_decline_glide,
-})
-
 default_a = -int(round(total_expected_decline)) if total_expected_decline > 0 else -5
 
 if prop_net_avg_fare > 0 and cur_trips > 0:
