@@ -309,6 +309,7 @@ def get_glide_by_opz(df_glide, city, week_num):
             (df_glide["city"].str.strip() == city) &
             (df_glide["weeknum"].astype(str).str.strip().isin([str(w) for w in week_list]))
         ].copy()
+        df_f["region_name"] = df_f["region_name"].astype(str).str.strip()
         for col in ["glidesum", "noglide", "total_trips"]:
             df_f[col] = pd.to_numeric(df_f[col], errors="coerce").fillna(0)
         result = df_f.groupby(["region_name", "timeofday"]).agg(
