@@ -1259,19 +1259,11 @@ def calc_expected_trip_decline(df_glide_opz, df_glide_hour, opz_hour_limits, cit
     try:
         total_excess_trips = 0
         for opz, minute_limit in opz_hour_limits.items():
-            max_glide_min = get_opz_max_glide(df_opz_list, city, opz)
-            effective_limit = 10 if minute_limit == 0 else minute_limit
-            if effective_limit == max_glide_min or effective_limit == 720:
-                continue
-            day_row   = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="DAY")]
-            night_row = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="NIGHT")]
-            opz_glide = day_row["glidesum"].sum() + night_row["glidesum"].sum()
-            within_pct = get_glide_hour_pct(df_glide_hour, city, opz, effective_limit)
-            if within_pct is not None:
-                total_excess_trips += opz_glide * (1 - within_pct / 100)
-        if cur_trips == 0:
+            ...
+        glide_sheet_total_trips = df_glide_opz["total_trips"].sum()
+        if glide_sheet_total_trips == 0:
             return None
-        return round(total_excess_trips / cur_trips * 100, 1)
+        return round(total_excess_trips / glide_sheet_total_trips * 100, 1)
     except:
         return None
 
