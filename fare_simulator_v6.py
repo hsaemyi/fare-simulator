@@ -1024,6 +1024,13 @@ if city_price_row is not None:
     )
     city_pricing_change_rate = (city_prop_fare_krw - city_cur_fare_krw) / city_cur_fare_krw if city_cur_fare_krw > 0 else 0
 
+    st.write("DEBUG city", {
+        "day_pct": day_pct, "night_pct": night_pct,
+        "day_pct_calc": day_pct_calc, "night_pct_calc": night_pct_calc,
+        "city_cur_fare_krw": city_cur_fare_krw,
+        "city_prop_fare_krw": city_prop_fare_krw,
+    })
+
 # ── OPZ별 계산 ──
 opz_cur_fare_krw  = 0
 opz_prop_fare_krw = 0
