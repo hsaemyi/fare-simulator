@@ -1014,14 +1014,22 @@ if city_price_row is not None:
         city_prop_ppu_night != city_price_row['ppu_night'] or
         city_prop_ppm_night != city_price_row['ppm_night']
     )
+
+    _city_day_total   = city_day_total if opz_list else 0
+    _city_night_total = city_night_total if opz_list else 0
+    _city_total_trips = _city_day_total + _city_night_total
+    _city_day_w   = _city_day_total / _city_total_trips if _city_total_trips > 0 else (day_pct_calc/100)
+    _city_night_w = _city_night_total / _city_total_trips if _city_total_trips > 0 else (night_pct_calc/100)
+
     city_cur_fare_krw = (
-        gross_fare_krw(city_price_row['ppu_day'],   city_price_row['ppm_day'],   cur_duration, cur_glide_day,   subs_day)   * (day_pct_calc/100) +
-        gross_fare_krw(city_price_row['ppu_night'], city_price_row['ppm_night'], cur_duration, cur_glide_night, subs_night) * (night_pct_calc/100)
+        gross_fare_krw(city_price_row['ppu_day'],   city_price_row['ppm_day'],   cur_duration, cur_glide_day,   subs_day)   * _city_day_w +
+        gross_fare_krw(city_price_row['ppu_night'], city_price_row['ppm_night'], cur_duration, cur_glide_night, subs_night) * _city_night_w
     )
     city_prop_fare_krw = (
-        gross_fare_krw(city_prop_ppu_day,   city_prop_ppm_day,   cur_duration, prop_glide_day,   subs_day)   * (day_pct_calc/100) +
-        gross_fare_krw(city_prop_ppu_night, city_prop_ppm_night, cur_duration, prop_glide_night, subs_night) * (night_pct_calc/100)
+        gross_fare_krw(city_prop_ppu_day,   city_prop_ppm_day,   cur_duration, prop_glide_day,   subs_day)   * _city_day_w +
+        gross_fare_krw(city_prop_ppu_night, city_prop_ppm_night, cur_duration, prop_glide_night, subs_night) * _city_night_w
     )
+    
     city_pricing_change_rate = (city_prop_fare_krw - city_cur_fare_krw) / city_cur_fare_krw if city_cur_fare_krw > 0 else 0
 
     st.write("DEBUG city", {
