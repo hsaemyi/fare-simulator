@@ -772,11 +772,17 @@ if opz_list:
 
         opz_hour_limits[opz] = minute_limit
 
-        if minute_limit == 0:
-            hour_info      = "OFF"
-            info_color     = "#E24B4A"
-            prop_total_pct = 0.0
-        elif minute_limit == max_glide_min or minute_limit == 720:
+        effective_limit = 10 if minute_limit == 0 else minute_limit
+        if effective_limit == max_glide_min or effective_limit == 720:
+            hour_info      = ""
+            info_color     = "#888"
+            prop_total_pct = total_cur_pct
+        else:
+            within_pct     = get_glide_hour_pct(df_glide_hour, selected_city, opz, effective_limit)
+            hour_info      = ("→ " + str(int(round(within_pct, 0))) + "% retained") if within_pct is not None else ""
+            info_color     = "#E07B00"
+            ratio          = (within_pct / 100) if within_pct is not None else 1.0
+            prop_total_pct = round(total_cur_pct * ratio, 1)    
             hour_info      = ""
             info_color     = "#888"
             prop_total_pct = total_cur_pct
@@ -812,14 +818,14 @@ if opz_list:
                     continue
                 opz_glide = opz_row["glidesum"].sum()
                 max_glide_min = get_opz_max_glide(df_opz_list, city, opz)
-                if minute_limit == 0:
-                    opz_glide = 0
-                elif minute_limit == max_glide_min or minute_limit == 720:
+                                effective_limit = 10 if minute_limit == 0 else minute_limit
+                if effective_limit == max_glide_min or effective_limit == 720:
                     pass
                 else:
-                    within_pct = get_glide_hour_pct(df_glide_hour, city, opz, minute_limit)
+                    within_pct = get_glide_hour_pct(df_glide_hour, city, opz, effective_limit)
                     if within_pct is not None:
                         opz_glide = opz_glide * (within_pct / 100)
+                        
                 glide_trips += opz_glide
             return round(glide_trips / total_trips * 100, 2)
         except:
@@ -1054,14 +1060,12 @@ for opz in price_opz_list:
 
     minute_limit  = opz_hour_limits.get(opz, 720)
     max_glide_min = get_opz_max_glide(df_opz_list, selected_city, opz)
-    if minute_limit == 0:
-        opz_prop_glide_day = 0
-        opz_prop_glide_night = 0
-    elif minute_limit == max_glide_min or minute_limit == 720:
+    effective_limit = 10 if minute_limit == 0 else minute_limit
+    if effective_limit == max_glide_min or effective_limit == 720:
         opz_prop_glide_day = opz_cur_glide_day
         opz_prop_glide_night = opz_cur_glide_night
     else:
-        within_pct = get_glide_hour_pct(df_glide_hour, selected_city, opz, minute_limit)
+        within_pct = get_glide_hour_pct(df_glide_hour, selected_city, opz, effective_limit)
         ratio = (within_pct / 100) if within_pct is not None else 1.0
         opz_prop_glide_day = round(opz_cur_glide_day * ratio, 2)
         opz_prop_glide_night = round(opz_cur_glide_night * ratio, 2)
@@ -1265,17 +1269,15 @@ def calc_expected_trip_decline(df_glide_opz, df_glide_hour, opz_hour_limits, cit
         total_excess_trips = 0
         for opz, minute_limit in opz_hour_limits.items():
             max_glide_min = get_opz_max_glide(df_opz_list, city, opz)
-            if minute_limit == max_glide_min or minute_limit == 720:
+            effective_limit = 10 if minute_limit == 0 else minute_limit
+            if effective_limit == max_glide_min or effective_limit == 720:
                 continue
             day_row   = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="DAY")]
             night_row = df_glide_opz[(df_glide_opz["region_name"]==opz) & (df_glide_opz["timeofday"]=="NIGHT")]
             opz_glide = day_row["glidesum"].sum() + night_row["glidesum"].sum()
-            if minute_limit == 0:
-                total_excess_trips += opz_glide
-            else:
-                within_pct = get_glide_hour_pct(df_glide_hour, city, opz, minute_limit)
-                if within_pct is not None:
-                    total_excess_trips += opz_glide * (1 - within_pct / 100)
+            within_pct = get_glide_hour_pct(df_glide_hour, city, opz, effective_limit)
+            if within_pct is not None:
+                total_excess_trips += opz_glide * (1 - within_pct / 100)
         if cur_trips == 0:
             return None
         return round(total_excess_trips / cur_trips * 100, 1)
