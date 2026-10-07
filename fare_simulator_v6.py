@@ -1251,9 +1251,13 @@ ppm_weight = (cur_ppm_avg * cur_duration) / cur_fare_base if cur_fare_base > 0 e
 weighted_elasticity = (ppu_weight * ppu_elasticity) + (ppm_weight * ppm_elasticity)
 
 total_fare_change = (ppu_weight * ppu_avg_change) + (ppm_weight * ppm_avg_change)
-price_decline = round(total_fare_change * weighted_elasticity, 1) if price_changed else 0.0
-ppu_decline   = round(ppu_avg_change * ppu_elasticity * ppu_weight, 1) if price_changed else 0.0
-ppm_decline   = round(ppm_avg_change * ppm_elasticity * ppm_weight, 1) if price_changed else 0.0
+ppu_decline_raw = ppu_avg_change * ppu_elasticity * ppu_weight
+ppm_decline_raw = ppm_avg_change * ppm_elasticity * ppm_weight
+
+price_decline = round(ppu_decline_raw + ppm_decline_raw, 1) if price_changed else 0.0
+ppu_decline   = round(ppu_decline_raw, 1) if price_changed else 0.0
+ppm_decline   = round(ppm_decline_raw, 1) if price_changed else 0.0
+
 
 def calc_expected_trip_decline(df_glide_opz, df_glide_hour, opz_hour_limits, city, cur_trips, df_opz_list):
     try:
