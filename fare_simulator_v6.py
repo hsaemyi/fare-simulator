@@ -1349,7 +1349,7 @@ bullets = []
 if glide_changed and price_changed:
     bullets.append(f"Combined Glide restriction and pricing changes increased Net Avg Fare by +{pct_fare:.1f}%")
     if (expected_decline_glide or 0) > 0 and abs(price_decline) > 0:
-        bullets.append(f"Glide-driven decline: ~{expected_decline_glide}% / Pricing-driven decline: ~{abs(price_decline):.1f}%<br><span style='font-size:11px;color:#888;'>({selected_sensitivity} · Weighted elasticity: {round(weighted_elasticity, 2)}, trip duration mix applied)</span>")
+        bullets.append(f"Glide-driven decline: ~{expected_decline_glide}% / Pricing-driven decline: ~{abs(price_decline):.1f}%<br><span style='font-size:11px;color:#888;'>({selected_sensitivity} · Elasticity assumption: PPU {ppu_elasticity:.1f} / PPM {ppm_elasticity:.1f})</span>")
     bullets.append(f"Total modeled trip decline: ~{total_expected_decline}% (Glide + Pricing combined estimate)")
 elif glide_changed:
     bullets.append(f"Glide restriction increased Net Avg Fare by +{pct_fare:.1f}%")
@@ -1363,7 +1363,7 @@ elif price_changed:
         bullets.append(f"PPM change increased Net Avg Fare by +{pct_fare:.1f}%")
     bullets.append(
         f"Total modeled trip decline: ~{total_expected_decline}% (Pricing-based estimate)"
-        f"<br><span style='font-size:11px;color:#888;'>({selected_sensitivity} · Weighted elasticity: {round(weighted_elasticity, 2)} based on trip duration mix)</span>"
+        f"<br><span style='font-size:11px;color:#888;'>({selected_sensitivity} · Elasticity assumption: PPU {ppu_elasticity:.1f} / PPM {ppm_elasticity:.1f})</span>"
     )
 else:
     bullets.append("No changes applied — baseline metrics displayed")
